@@ -1,0 +1,44 @@
+name: Build APK
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Create required files and debug keystore
+        run: |
+          touch secrets.properties
+          touch local.properties
+          touch .env
+          touch .env.example
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          echo "MAPS_API_KEY=dummy_key_to_bypass_errors" >> secrets.properties
+          keytool -genkey -v -keystore debug.keystore -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=Android,O=Android,C=US"
+          cp debug.keystore app/debug.keystore 2>/dev/null || true
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Build Debug APK (Force Build)
+        run: gradle assembleDebug -x lint -x test --stacktrace
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: BakriPrint-APK
+          path: app/build/outputs/apk/debug/*.apk
